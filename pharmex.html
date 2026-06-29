@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pharmex — İlaç & Eczane Bulucu</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<!-- Leaflet (ücretsiz harita) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+/* ============================================
+   CSS VARIABLES & RESET
+   ============================================ */
+:root {
+  --navy:    #0b1929;
+  --navy2:   #132236;
+  --navy3:   #1e3352;
+  --blue:    #2563eb;
+  --blue2:   #1d4ed8;
+  --mint:    #10b981;
+  --red:     #ef4444;
+  --yellow:  #f59e0b;
+  --white:   #ffffff;
+  --gray50:  #f8fafc;
+  --gray100: #f1f5f9;
+  --gray200: #e2e8f0;
+  --gray400: #94a3b8;
+  --gray500: #64748b;
+  --gray700: #334155;
+  --gray900: #0f172a;
+  --radius:  12px;
+  --shadow:  0 4px 24px rgba(0,0,0,.08);
+  --shadow2: 0 8px 40px rgba(0,0,0,.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--gray50);
+  color: var(--gray900);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ============================================
+   UTILITIES
+   ============================================ */
+.hidden    { display: none !important; }
+.mono      { font-family: 'Space Mono', monospace; }
+.flex      { display: flex; }
+.items-center { align-items: center; }
+.gap-2     { gap: 8px; }
+.gap-3     { gap: 12px; }
+.gap-4     { gap: 16px; }
+.mt-2      { margin-top: 8px; }
+.mt-4      { margin-top: 16px; }
+.mb-4      { margin-bottom: 16px; }
+.mb-6      { margin-bottom: 24px; }
+.text-sm   { font-size: 13px; }
+.text-xs   { font-size: 11px; }
+.font-bold { font-weight: 700; }
+.truncate  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================
+   BADGE
+   ============================================ */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 999px; letter-spacing: .3px;
+}
+.badge-green  { background: #d1fae5; color: #065f46; }
+.badge-red    { background: #fee2e2; color: #991b1b; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-blue   { background: #dbeafe; color: #1e40af; }
+.badge-gray   { background: var(--gray100); color: var(--gray500); }
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px; border-radius: var(--radius); font-size: 14px;
+  font-weight: 600; font-family: inherit; cursor: pointer;
+  border: none; transition: all .15s ease; text-decoration: none;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary  { background: var(--blue); color: #fff; }
+.btn-primary:hover:not(:disabled)  { background: var(--blue2); transform: translateY(-1px); }
+.btn-success  { background: var(--mint); color: #fff; }
+.btn-success:hover:not(:disabled)  { background: #059669; }
+.btn-danger   { background: var(--red); color: #fff; }
+.btn-danger:hover:not(:disabled)   { background: #dc2626; }
+.btn-ghost    { background: var(--gray100); color: var(--gray700); }
+.btn-ghost:hover:not(:disabled)    { background: var(--gray200); }
+.btn-outline  { background: transparent; color: var(--blue); border: 2px solid var(--blue); }
+.btn-outline:hover:not(:disabled)  { background: #eff6ff; }
+.btn-sm       { padding: 7px 14px; font-size: 12px; }
+.btn-lg       { padding: 14px 28px; font-size: 16px; }
+
+/* ============================================
+   FORM ELEMENTS
+   ============================================ */
+label { display: block; font-size: 13px; font-weight: 600; color: var(--gray700); margin-bottom: 6px; }
+
+input, select, textarea {
+  width: 100%; padding: 11px 14px; border: 2px solid var(--gray200);
+  border-radius: var(--radius); font-size: 14px; font-family: inherit;
+  color: var(--gray900); background: var(--white); transition: border-color .15s;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+input::placeholder { color: var(--gray400); }
+
+.form-group { margin-bottom: 16px; }
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ============================================
+   CARD
+   ============================================ */
+.card {
+  background: var(--white); border-radius: var(--radius);
+  box-shadow: var(--shadow); border: 1px solid var(--gray200);
+  overflow: hidden;
+}
+.card-header {
+  padding: 20px 24px; border-bottom: 1px solid var(--gray100);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 16px; font-weight: 700; color: var(--gray900); }
+.card-body  { padding: 24px; }
+
+/* ============================================
+   TABLE
+   ============================================ */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: var(--gray50); }
+th {
+  text-align: left; padding: 10px 16px;
+  font-size: 11px; font-weight: 700; color: var(--gray500);
+  text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 2px solid var(--gray200);
+}
+td { padding: 14px 16px; border-bottom: 1px solid var(--gray100); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--gray50); }
+
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+#toast-container {
+  position: fixed; top: 20px; right: 20px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.toast {
+  min-width: 280px; max-width: 380px; padding: 14px 18px;
+  border-radius: var(--radius); font-size: 13px; font-weight: 500;
+  color: #fff; display: flex; align-items: center; gap: 10px;
+  box-shadow: var(--shadow2); animation: slideIn .25s ease;
+}
+.toast-success { background: var(--mint); }
+.toast-error   { background: var(--red); }
+.toast-info    { background: var(--blue); }
+@keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+
+/* ============================================
+   MODAL
+   ============================================ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal {
+  background: var(--white); border-radius: 16px; width: 100%; max-width: 520px;
+  max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow2);
+  animation: modalIn .2s ease;
+}
+@keyframes modalIn { from { transform: scale(.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.modal-header {
+  padding: 24px 28px 0; display: flex; align-items: center; justify-content: space-between;
+}
+.modal-header h2 { font-size: 18px; font-weight: 700; }
+.modal-body   { padding: 24px 28px; }
+.modal-footer { padding: 0 28px 24px; display: flex; gap: 10px; justify-content: flex-end; }
+.modal-close {
+  width: 32px; height: 32px; border-radius: 8px; border: none; background: var(--gray100);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--gray500); transition: background .15s;
+}
+.modal-close:hover { background: var(--gray200); }
+
+/* ============================================
+   SETUP MODAL (SQL guide)
+   ============================================ */
+.sql-block {
+  background: var(--navy); color: #7dd3fc; padding: 16px; border-radius: 10px;
+  font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.8;
+  overflow-x: auto; margin: 12px 0; white-space: pre;
+}
+
+/* ============================================
+   LOGIN SCREEN
+   ============================================ */
+#view-login {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 50%, #0d2137 100%);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.login-box {
+  width: 100%; max-width: 420px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px; padding: 48px 40px;
+  backdrop-filter: blur(20px);
+}
+.login-logo {
+  text-align: center; margin-bottom: 36px;
+}
+.login-logo .logo-icon {
+  width: 64px; height: 64px; background: var(--blue);
+  border-radius: 16px; display: flex; align-items: center;
+  justify-content: center; margin: 0 auto 16px; font-size: 28px;
+}
+.login-logo h1 { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -1px; }
+.login-logo p  { color: rgba(255,255,255,.5); font-size: 14px; margin-top: 4px; }
+
+.login-box label { color: rgba(255,255,255,.7); }
+.login-box input {
+  background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.1); color: #fff;
+}
+.login-box input:focus { border-color: var(--blue); }
+.login-box input::placeholder { color: rgba(255,255,255,.3); }
+.login-error {
+  background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3);
+  color: #fca5a5; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+}
+.setup-link {
+  text-align: center; margin-top: 20px;
+}
+.setup-link a {
+  color: rgba(255,255,255,.4); font-size: 12px; cursor: pointer;
+  text-decoration: underline;
+}
+.setup-link a:hover { color: rgba(255,255,255,.7); }
+
+/* ============================================
+   APP SHELL (sidebar + content)
+   ============================================ */
+#app-shell {
+  display: flex; height: 100vh; overflow: hidden;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 240px; background: var(--navy); flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.sidebar-logo {
+  padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,.07);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-logo .icon {
+  width: 36px; height: 36px; background: var(--blue); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.sidebar-logo span { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
+
+.sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+.nav-section { margin-bottom: 24px; }
+.nav-label {
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,.3);
+  text-transform: uppercase; letter-spacing: 1px;
+  padding: 0 8px; margin-bottom: 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  color: rgba(255,255,255,.6); font-size: 14px; font-weight: 500;
+  transition: all .15s; user-select: none;
+}
+.nav-item:hover  { background: rgba(255,255,255,.07); color: #fff; }
+.nav-item.active { background: var(--blue); color: #fff; }
+.nav-item .icon  { font-size: 16px; width: 20px; text-align: center; }
+
+.sidebar-footer {
+  padding: 16px 12px; border-top: 1px solid rgba(255,255,255,.07);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; border-radius: 10px; margin-bottom: 8px;
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #fff;
+}
+.user-info p   { font-size: 12px; color: #fff; font-weight: 600; }
+.user-info small { font-size: 11px; color: rgba(255,255,255,.4); }
+.btn-logout {
+  width: 100%; padding: 9px; border-radius: 9px; background: rgba(239,68,68,.15);
+  border: 1px solid rgba(239,68,68,.2); color: #fca5a5;
+  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background .15s;
+}
+.btn-logout:hover { background: rgba(239,68,68,.25); }
+
+/* MAIN CONTENT */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  background: var(--white); border-bottom: 1px solid var(--gray200);
+  padding: 0 28px; height: 64px; display: flex; align-items: center;
+  justify-content: space-between; flex-shrink: 0;
+}
+.topbar h2 { font-size: 18px; font-weight: 700; color: var(--gray900); }
+.topbar small { font-size: 13px; color: var(--gray400); margin-left: 8px; font-weight: 400; }
+.mobile-menu{
+    display:none;
+    background:none;
+    border:none;
+    font-size:24px;
+    cursor:pointer;
+    margin-right:14px;
+    color:var(--gray900);
+}
+
+@media(max-width:768px){
+
+.mobile-menu{
+    display:block;
+}
+
+}
+.content-area { flex: 1; overflow-y: auto; padding: 28px; }
+
+/* ============================================
+   PAGE VIEWS
+   ============================================ */
+.page-view { display: none; }
+.page-view.active { display: block; }
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--white); border-radius: var(--radius);
+  padding: 20px; border: 1px solid var(--gray200); box-shadow: var(--shadow);
+}
+.stat-icon { font-size: 28px; margin-bottom: 12px; }
+.stat-value { font-size: 32px; font-weight: 700; color: var(--gray900); font-family: 'Space Mono', monospace; }
+.stat-label { font-size: 12px; color: var(--gray500); font-weight: 500; margin-top: 2px; }
+
+/* Search section */
+.search-bar {
+  display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-start;
+}
+.search-bar input { flex: 1; font-size: 16px; padding: 14px 18px; }
+.search-bar .btn  { height: 50px; padding: 0 24px; white-space: nowrap; flex-shrink: 0; }
+.geo-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--gray100); border: none; padding: 8px 14px;
+  border-radius: 8px; font-size: 13px; color: var(--gray700);
+  cursor: pointer; font-family: inherit; font-weight: 500; transition: background .15s;
+}
+.geo-btn:hover { background: var(--gray200); }
+.geo-btn.active { background: #d1fae5; color: #065f46; }
+
+/* Map */
+#map { height: 400px; border-radius: var(--radius); border: 1px solid var(--gray200); margin-bottom: 20px; }
+
+/* Pharmacy result cards */
+.result-card {
+  background: var(--white); border-radius: var(--radius); padding: 18px 20px;
+  border: 2px solid var(--gray200); margin-bottom: 12px;
+  cursor: pointer; transition: all .15s;
+}
+.result-card:hover  { border-color: var(--blue); transform: translateY(-1px); box-shadow: var(--shadow); }
+.result-card.active { border-color: var(--blue); background: #eff6ff; }
+.result-name   { font-size: 15px; font-weight: 700; color: var(--gray900); margin-bottom: 4px; }
+.result-meta   { font-size: 13px; color: var(--gray500); display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.result-meta span { display: flex; align-items: center; gap: 4px; }
+.result-distance { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; color: var(--blue); }
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 60px 20px; color: var(--gray400);
+}
+.empty-state .icon { font-size: 56px; margin-bottom: 16px; }
+.empty-state h3    { font-size: 18px; font-weight: 600; color: var(--gray500); margin-bottom: 8px; }
+.empty-state p     { font-size: 14px; }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px; color: var(--gray500); font-size: 14px; }
+.spinner { width: 22px; height: 22px; border: 3px solid var(--gray200); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Action bar */
+.action-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.action-bar h2 { font-size: 20px; font-weight: 700; }
+
+/* Debug panel */
+#debug-panel {
+  position: fixed; bottom: 16px; right: 16px; z-index: 5000;
+  width: 380px; max-height: 260px;
+  background: rgba(11,25,41,.97); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; overflow: hidden; font-family: 'Space Mono', monospace;
+  display: none;
+}
+#debug-panel.visible { display: block; }
+.debug-header {
+  padding: 8px 14px; background: rgba(255,255,255,.05);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.debug-header span { font-size: 11px; color: #7dd3fc; font-weight: 700; }
+.debug-toggle-btn {
+  background: none; border: none; color: rgba(255,255,255,.4);
+  cursor: pointer; font-size: 13px; font-family: inherit;
+}
+.debug-logs { padding: 10px 14px; overflow-y: auto; max-height: 210px; }
+.debug-log { font-size: 10px; line-height: 1.7; }
+.debug-log.info    { color: #7dd3fc; }
+.debug-log.success { color: #6ee7b7; }
+.debug-log.warn    { color: #fcd34d; }
+.debug-log.error   { color: #fca5a5; }
+#debug-btn {
+  position: fixed; bottom: 16px; right: 16px; z-index: 4999;
+  background: var(--navy); border: 1px solid rgba(255,255,255,.15);
+  color: #7dd3fc; border-radius: 10px; padding: 8px 14px;
+  font-size: 11px; font-family: 'Space Mono', monospace;
+  cursor: pointer; transition: all .15s;
+}
+#debug-btn:hover { background: var(--navy2); }
+
+/* Map popup */
+.leaflet-popup-content { font-family: 'DM Sans', sans-serif; min-width: 180px; }
+.popup-name  { font-weight: 700; font-size: 14px; color: var(--gray900); margin-bottom: 4px; }
+.popup-addr  { font-size: 12px; color: var(--gray500); margin-bottom: 8px; }
+.popup-stock { display: flex; flex-wrap: wrap; gap: 4px; }
+.popup-pill  { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+/* Autocomplete */
+.ac-container { position: relative; flex: 1; }
+.ac-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--white); border: 1px solid var(--gray200);
+  border-radius: var(--radius); box-shadow: var(--shadow2); z-index: 200;
+  overflow: hidden;
+}
+.ac-item {
+  padding: 12px 16px; cursor: pointer; font-size: 14px; color: var(--gray700);
+  border-bottom: 1px solid var(--gray100); display: flex; align-items: center; gap: 8px;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover { background: var(--gray50); color: var(--blue); }
+
+/* ============================================
+   MOBILE RESPONSIVE
+============================================ */
+
+@media (max-width:768px){
+
+/* Sidebar gizli */
+.sidebar{
+    position:fixed;
+    left:-250px;
+    top:0;
+    width:250px;
+    height:100%;
+    z-index:9999;
+    transition:.3s;
+}
+
+.sidebar.open{
+    left:0;
+}
+
+/* İçerik tam ekran */
+.main-content{
+    width:100%;
+}
+
+/* Üst bar */
+.topbar{
+    padding:0 12px;
+}
+
+/* Sayfa boşlukları */
+.content-area{
+    padding:14px;
+}
+
+/* Formlar */
+.form-row{
+    grid-template-columns:1fr;
+}
+
+/* Arama */
+.search-bar{
+    flex-direction:column;
+}
+
+.search-bar .btn{
+    width:100%;
+}
+
+/* Haritalar */
+#map,
+#all-pharmacies-map{
+    height:300px;
+}
+
+/* Sonuç kartları */
+.result-card{
+    padding:14px;
+}
+
+.result-meta{
+    flex-direction:column;
+    gap:6px;
+}
+
+/* İstatistikler */
+.stats-grid{
+    grid-template-columns:1fr;
+}
+
+/* Dashboard */
+#page-admin-dash > div:last-child{
+    display:flex !important;
+    flex-direction:column;
+}
+
+/* Modallar */
+.modal{
+    width:95%;
+    max-width:95%;
+}
+
+.modal-body{
+    padding:18px;
+}
+
+/* Tablolar */
+table{
+    min-width:700px;
+}
+
+/* Toast */
+#toast-container{
+    left:10px;
+    right:10px;
+    top:10px;
+}
+
+.toast{
+    width:100%;
+    min-width:auto;
+    max-width:none;
+}
+
+/* Debug */
+#debug-panel{
+    width:95%;
+    left:2.5%;
+    right:auto;
+}
+
+/* Login */
+.login-box{
+    padding:30px 22px;
+}
+
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================
+     TOAST CONTAINER
+     ============================================ -->
+<div id="toast-container"></div>
+
+<!-- ============================================
+     DEBUG BUTTON & PANEL
+     ============================================ -->
+<button id="debug-btn" onclick="toggleDebug()">🐛 Debug</button>
+<div id="debug-panel">
+  <div class="debug-header">
+    <span>📡 PHARMEX DEBUG CONSOLE</span>
+    <button class="debug-toggle-btn" onclick="clearDebug()">Temizle</button>
+  </div>
+  <div class="debug-logs" id="debug-logs"></div>
+</div>
+
+<!-- ============================================
+     LOGIN VIEW
+     ============================================ -->
+<div id="view-login">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-icon">💊</div>
+      <h1>Pharmex</h1>
+      <p>İlaç & Eczane Yönetim Sistemi</p>
+    </div>
+    <div class="form-group">
+      <label>E-posta</label>
+      <input type="email" id="login-email" placeholder="ornek@pharmex.com" />
+    </div>
+    <div class="form-group">
+      <label>Şifre</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter') login()" />
+    </div>
+    <div id="login-error" class="login-error hidden"></div>
+    <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px" onclick="login()" id="login-btn">
+      Giriş Yap
+    </button>
+    <button class="btn btn-outline btn-lg" style="width:100%;margin-top:10px" onclick="register()">
+  Kayıt Ol
+</button>
+    <div class="setup-link">
+      <a onclick="document.getElementById('setup-modal').classList.remove('hidden')">
+        ⚙️ İlk kurulum / Supabase ayarları
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     APP SHELL (logged-in state)
+     ============================================ -->
+<div id="app-shell" class="hidden">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">💊</div>
+      <span>Pharmex</span>
+    </div>
+    <div class="sidebar-nav" id="sidebar-nav">
+      <!-- filled by JS based on role -->
+    </div>
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar" id="user-avatar" style="background:var(--blue)">?</div>
+        <div class="user-info">
+          <p id="user-email-display" class="truncate" style="max-width:130px">...</p>
+          <small id="user-role-display">...</small>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">🚪 Çıkış Yap</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main-content">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;">
+        <button id="menu-btn" class="mobile-menu">☰</button>
+
+        <div>
+          <h2 id="topbar-title">Pharmex</h2>
+          <small id="topbar-sub"></small>
+        </div>
+      </div>
+    </div>
+    <div class="content-area">
+
+      <!-- ====== KULLANICI: İLAÇ ARAMA ====== -->
+      <div class="page-view" id="page-search">
+        <div class="mb-6">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <button class="geo-btn" id="geo-btn" onclick="getLocation()">📍 Konumumu Kullan</button>
+            <span id="geo-status" class="text-sm" style="color:var(--gray500)"></span>
+          </div>
+          <div class="search-bar">
+            <div class="ac-container">
+              <input type="text" id="search-input" placeholder="İlaç adı veya barkod girin..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') searchMedicines()" />
+              <div id="ac-list" class="ac-list hidden"></div>
+            </div>
+            <button class="btn btn-primary" onclick="searchMedicines()" id="search-btn">🔍 Ara</button>
+          </div>
+        </div>
+
+        <div id="map" style="display:none"></div>
+
+        <div id="search-results"></div>
+      </div>
+
+      <!-- ====== KULLANICI: TÜM ECZANELER HARİTASI ====== -->
+      <div class="page-view" id="page-map">
+        <div class="mb-4" style="display:flex;align-items:center;gap:10px">
+          <button class="geo-btn" id="geo-btn-map" onclick="getLocationForMap()">📍 Konumumu Göster</button>
+          <span id="geo-status-map" class="text-sm" style="color:var(--gray500)"></span>
+        </div>
+        <div id="all-pharmacies-map" style="height:500px;border-radius:var(--radius);border:1px solid var(--gray200)"></div>
+        <div id="pharmacies-list-below" style="margin-top:20px"></div>
+      </div>
+
+      <!-- ====== ADMIN: GENEL BAKIŞ ====== -->
+      <div class="page-view" id="page-admin-dash">
+        <div class="stats-grid" id="admin-stats">
+          <div class="loading"><div class="spinner"></div> Yükleniyor...</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="card">
+            <div class="card-header"><span class="card-title">📈 En Çok Aranan İlaçlar</span></div>
+            <div class="card-body" id="top-medicines"></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">🕐 Son Aktiviteler</span></div>
+            <div class="card-body" id="recent-activity"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== ADMIN: ECZANE YÖNETİMİ ====== -->
+      <div class="page-view" id="page-pharmacies">
+        <div class="action-bar">
+          <h2>🏥 Eczaneler</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddPharmacyModal()">+ Yeni Eczane</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Eczane</th><th>Adres</th><th>Telefon</th><th>Kullanıcı</th><th>Durum</th><th>İşlem</th></tr></thead>
+              <tbody id="pharmacies-table">
+                <tr><td colspan="6"><div class="loading"><div class="spinner"></div> Yükleniyor...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== ADMIN: İLAÇ YÖNETİMİ ====== -->
+      <div class="page-view" id="page-medicines">
+        <div class="action-bar">
+          <h2>💊 İlaçlar</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddMedicineModal()">+ Yeni İlaç</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>İlaç Adı</th><th>Barkod</th><th>Üretici</th><th>İşlem</th></tr></thead>
+              <tbody id="medicines-table">
+                <tr><td colspan="4"><div class="loading"><div class="spinner"></div> Yükleniyor...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== ADMIN: AKTİVİTE LOGLARI ====== -->
+      <div class="page-view" id="page-logs">
+        <div class="action-bar"><h2>📋 Aktivite Logları</h2></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Kullanıcı</th><th>Aksiyon</th><th>Detay</th><th>Tarih</th></tr></thead>
+              <tbody id="logs-table">
+                <tr><td colspan="4"><div class="loading"><div class="spinner"></div> Yükleniyor...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== ECZANE: GENEL BAKIŞ ====== -->
+      <div class="page-view" id="page-pharmacy-dash">
+        <div class="stats-grid" id="pharmacy-stats">
+          <div class="loading"><div class="spinner"></div> Yükleniyor...</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📦 Son Güncellenen Stoklar</span></div>
+          <div class="card-body" id="pharmacy-recent-stock"></div>
+        </div>
+      </div>
+
+      <!-- ====== ECZANE: STOK YÖNETİMİ ====== -->
+      <div class="page-view" id="page-stock">
+        <div class="action-bar">
+          <h2>📦 Stok Yönetimi</h2>
+          <button class="btn btn-primary btn-sm" onclick="showAddStockModal()">+ Stok Güncelle</button>
+        </div>
+        <div style="margin-bottom:16px">
+          <input type="text" id="stock-search" placeholder="İlaç ara..." oninput="filterStock(this.value)" style="max-width:300px" />
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>İlaç</th><th>Barkod</th><th>Miktar</th><th>Durum</th><th>Güncelleme</th></tr></thead>
+              <tbody id="stock-table">
+                <tr><td colspan="5"><div class="loading"><div class="spinner"></div> Yükleniyor...</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+  </div><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<!-- ============================================
+     MODALS
+     ============================================ -->
+
+<!-- Setup / SQL Guide -->
+<div id="setup-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2>⚙️ Supabase Kurulum Rehberi</h2>
+      <button class="modal-close" onclick="document.getElementById('setup-modal').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--gray500);margin-bottom:16px">
+        Pharmex'i kullanmak için Supabase projenizi aşağıdaki adımlara göre ayarlayın.
+      </p>
+      <p style="font-weight:700;margin-bottom:8px;font-size:14px">1. Sayfanın en üstündeki CONFIG bölümünü doldurun:</p>
+      <div class="sql-block">const SUPABASE_URL = 'https://XYZ.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJh...'</div>
+      <p style="font-weight:700;margin-bottom:8px;font-size:14px">2. Supabase SQL Editor'de çalıştırın:</p>
+      <div class="sql-block" style="font-size:10px">-- Tablolar
+CREATE TABLE profiles (id UUID PRIMARY KEY REFERENCES auth.users(id),
+  email TEXT, role TEXT DEFAULT 'user', full_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW());
+
+CREATE TABLE pharmacies (id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id), name TEXT NOT NULL,
+  address TEXT, latitude FLOAT, longitude FLOAT, phone TEXT, is_active BOOL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW());
+
+CREATE TABLE medicines (id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL, barcode TEXT UNIQUE, manufacturer TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW());
+
+CREATE TABLE stock (id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pharmacy_id UUID REFERENCES pharmacies(id) ON DELETE CASCADE,
+  medicine_id UUID REFERENCES medicines(id) ON DELETE CASCADE,
+  quantity INT DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(pharmacy_id, medicine_id));
+
+CREATE TABLE activity_logs (id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id), action TEXT, details JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW());
+
+CREATE TABLE search_analytics (id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  medicine_name TEXT, searched_at TIMESTAMPTZ DEFAULT NOW());
+
+-- Trigger: otomatik profil oluştur
+CREATE OR REPLACE FUNCTION handle_new_user() RETURNS TRIGGER AS $$
+BEGIN INSERT INTO profiles(id,email) VALUES(NEW.id,NEW.email); RETURN NEW; END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- RLS
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pharmacies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE medicines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE search_analytics ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Herkes okur" ON pharmacies FOR SELECT USING (is_active=TRUE);
+CREATE POLICY "Herkes okur" ON medicines FOR SELECT USING (TRUE);
+CREATE POLICY "Herkes okur" ON stock FOR SELECT USING (TRUE);
+CREATE POLICY "Kendi profil" ON profiles FOR ALL USING (auth.uid()=id);
+CREATE POLICY "Auth log" ON activity_logs FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Arama ekle" ON search_analytics FOR INSERT WITH CHECK (TRUE);
+CREATE POLICY "Admin log" ON activity_logs FOR SELECT USING (
+  (SELECT role FROM profiles WHERE id=auth.uid())='admin');
+
+-- Service Role için (admin işlemleri API üzerinden yapılır)
+</div>
+      <p style="font-weight:700;margin:16px 0 8px;font-size:14px">3. Admin hesabı:</p>
+      <p style="font-size:13px;color:var(--gray500)">
+        Supabase Dashboard → Authentication → Users → "Add User" ile admin e-postasını ekleyin.<br/>
+        Ardından SQL Editor'de: <code style="background:var(--gray100);padding:2px 6px;border-radius:4px">UPDATE profiles SET role='admin' WHERE email='admin@sizin.com';</code>
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="document.getElementById('setup-modal').classList.add('hidden')">Anladım</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Pharmacy Modal -->
+<div id="pharmacy-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🏥 Yeni Eczane Ekle</h2>
+      <button class="modal-close" onclick="closeModal('pharmacy-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px 14px;border-radius:8px;font-size:13px;color:#1e40af;margin-bottom:16px">
+        ⚠️ Eczane için yeni bir Supabase kullanıcısı oluşturulacak. Bu işlem Service Role Key gerektirir.
+        <br/><strong>Service Role Key'i CONFIG bölümüne eklemeyi unutmayın.</strong>
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Eczane Adı *</label>
+          <input type="text" id="ph-name" placeholder="Hayat Eczanesi" />
+        </div>
+        <div class="form-group">
+          <label>Telefon</label>
+          <input type="text" id="ph-phone" placeholder="0212 555 55 55" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Adres *</label>
+        <input type="text" id="ph-address" placeholder="Atatürk Cad. No:12, Kadıköy, İstanbul" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Enlem * <small style="color:var(--gray400)">(örn: 41.0082)</small></label>
+          <input type="number" id="ph-lat" placeholder="41.0082" step="any" />
+        </div>
+        <div class="form-group">
+          <label>Boylam * <small style="color:var(--gray400)">(örn: 28.9784)</small></label>
+          <input type="number" id="ph-lon" placeholder="28.9784" step="any" />
+        </div>
+      </div>
+      <hr style="margin:16px 0;border-color:var(--gray200)" />
+      <p style="font-size:13px;font-weight:700;margin-bottom:12px">Giriş Bilgileri</p>
+      <div class="form-group">
+        <label>E-posta *</label>
+        <input type="email" id="ph-email" placeholder="eczane@mail.com" />
+      </div>
+      <div class="form-group">
+        <label>Şifre * (en az 8 karakter)</label>
+        <input type="password" id="ph-password" placeholder="••••••••" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('pharmacy-modal')">İptal</button>
+      <button class="btn btn-primary" onclick="addPharmacy()" id="add-ph-btn">Eczane Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Medicine Modal -->
+<div id="medicine-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>💊 Yeni İlaç Ekle</h2>
+      <button class="modal-close" onclick="closeModal('medicine-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>İlaç Adı *</label>
+        <input type="text" id="med-name" placeholder="Parol 500mg Tablet" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Barkod</label>
+          <input type="text" id="med-barcode" placeholder="8699546090016" />
+        </div>
+        <div class="form-group">
+          <label>Üretici</label>
+          <input type="text" id="med-manufacturer" placeholder="Atabay İlaç" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('medicine-modal')">İptal</button>
+      <button class="btn btn-primary" onclick="addMedicine()" id="add-med-btn">İlaç Ekle</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Update Stock Modal -->
+<div id="stock-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📦 Stok Güncelle</h2>
+      <button class="modal-close" onclick="closeModal('stock-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>İlaç *</label>
+        <select id="stock-medicine-select">
+          <option value="">İlaç seçin...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Miktar *</label>
+        <input type="number" id="stock-quantity" min="0" placeholder="0" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('stock-modal')">İptal</button>
+      <button class="btn btn-primary" onclick="saveStock()" id="save-stock-btn">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     JAVASCRIPT
+     ============================================ -->
+<script>
+'use strict';
+
+/* ================================================
+   ⚙️  CONFIG — BURAYA KENDİ BİLGİLERİNİZİ GİRİN
+   ================================================ */
+const SUPABASE_URL      = 'https://gjbqtwtwfptoklknjszr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqYnF0d3R3ZnB0b2tsa25qc3pyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDEwNzYsImV4cCI6MjA5MDE3NzA3Nn0.kSmNmQWH1jxxfRkWGsxAKZdr0Dgjp15ugPkQQguxfHU';
+
+
+// Eczane oluşturmak için Service Role Key (admin paneli için)
+// NOT: Bu dosya yalnızca yerel kullanım içindir. Production'da service role'ü backend'de kullanın.
+//const SUPABASE_SERVICE_KEY = 'YOUR_SERVICE_ROLE_KEY';
+/* ================================================ */
+
+// ── SUPABASE CLIENT ─────────────────────────────
+const { createClient } = supabase;
+const db  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Admin işlemleri için service client
+//const dba = SUPABASE_SERVICE_KEY !== 'YOUR_SERVICE_ROLE_KEY'
+//  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
+//  : null;
+
+// ── APP STATE ────────────────────────────────────
+const state = {
+  user:        null,   // auth user
+  profile:     null,   // profiles row
+  pharmacy:    null,   // eczane row (pharmacy role için)
+  lat:         null,   // kullanıcı enlemi
+  lon:         null,   // kullanıcı boylamı
+  mapInstance: null,   // leaflet map (search)
+  allMapInstance: null,// leaflet map (all pharmacies)
+  allMedicines: [],    // admin/eczane için ilaç listesi
+  allStock:    [],     // eczane stok önbelleği
+  markers:     [],     // harita markerları
+  currentPage: '',
+};
+
+// ── DEBUG ────────────────────────────────────────
+function log(msg, type = 'info') {
+  const el = document.getElementById('debug-logs');
+  const time = new Date().toLocaleTimeString('tr-TR');
+  const div = document.createElement('div');
+  div.className = `debug-log ${type}`;
+  div.textContent = `[${time}] ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  console[type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'log'](`[Pharmex] ${msg}`);
+}
+function toggleDebug() {
+  const p = document.getElementById('debug-panel');
+  const b = document.getElementById('debug-btn');
+  p.classList.toggle('visible');
+  b.style.display = p.classList.contains('visible') ? 'none' : 'block';
+}
+function clearDebug() { document.getElementById('debug-logs').innerHTML = ''; }
+
+// ── TOAST ────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.animation = 'slideOut .3s ease forwards'; setTimeout(() => el.remove(), 300); }, 3500);
+  log(`[TOAST-${type.toUpperCase()}] ${msg}`, type === 'error' ? 'error' : type === 'success' ? 'success' : 'info');
+}
+
+// ── MODAL HELPERS ────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ── DATE FORMAT ──────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+// ── HAVERSINE ────────────────────────────────────
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, toR = d => d * Math.PI / 180;
+  const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function fmtDist(km) { return km < 1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`; }
+
+// ── STOCK STATUS ─────────────────────────────────
+function stockBadge(qty) {
+  if (qty === 0)   return '<span class="badge badge-red">Stokta Yok</span>';
+  if (qty < 10)    return '<span class="badge badge-yellow">Az Stok</span>';
+  return              '<span class="badge badge-green">Stokta Var</span>';
+}
+
+/* ================================================
+   AUTH — GİRİŞ / ÇIKIŞ
+   ================================================ */
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
+
+  log(`Giriş denemesi: ${email}`);
+
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Giriş Yap';
+
+  if (error) {
+    log(`Giriş hatası: ${error.message}`, 'error');
+    errEl.textContent = 'E-posta veya şifre hatalı.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  log(`Giriş başarılı: ${data.user.email}`, 'success');
+  await initApp(data.user);
+}
+
+async function logout() {
+  log('Çıkış yapılıyor...');
+  await db.auth.signOut();
+  state.user = state.profile = state.pharmacy = null;
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('view-login').style.display = 'flex';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  toast('Çıkış yapıldı.', 'info');
+  log('Çıkış tamamlandı.');
+}
+
+/* ================================================
+   APP INIT — Giriş sonrası her şeyi başlat
+   ================================================ */
+async function initApp(user) {
+  log(`initApp: ${user.email}`);
+  state.user = user;
+
+  // Profil yükle
+  const { data: profile, error: pErr } = await db.from('profiles').select('*').eq('id', user.id).single();
+  if (pErr) { log(`Profil hatası: ${pErr.message}`, 'error'); toast('Profil yüklenemedi.', 'error'); return; }
+
+  state.profile = profile;
+  log(`Profil yüklendi: role=${profile.role}`, 'success');
+
+  // UI güncelle
+  document.getElementById('user-email-display').textContent = profile.email || user.email;
+  document.getElementById('user-role-display').textContent  = roleName(profile.role);
+  const av = document.getElementById('user-avatar');
+  av.textContent = (profile.email || user.email)[0].toUpperCase();
+  av.style.background = roleColor(profile.role);
+
+  // Eczane rolü ise eczane verisini yükle
+  if (profile.role === 'pharmacy') {
+    const { data: ph } = await db.from('pharmacies').select('*').eq('user_id', user.id).single();
+    state.pharmacy = ph;
+    log(`Eczane yüklendi: ${ph?.name}`, 'success');
+  }
+
+  // Login gizle, app göster
+  document.getElementById('view-login').style.display = 'none';
+  document.getElementById('app-shell').classList.remove('hidden');
+
+  // Rol'e göre sidebar ve varsayılan sayfa
+  buildSidebar(profile.role);
+  navigateTo(defaultPage(profile.role));
+}
+
+function roleName(role) {
+  return { admin: 'Admin', pharmacy: 'Eczane Yöneticisi', user: 'Kullanıcı' }[role] || role;
+}
+function roleColor(role) {
+  return { admin: '#7c3aed', pharmacy: '#059669', user: '#2563eb' }[role] || '#2563eb';
+}
+function defaultPage(role) {
+  return { admin: 'admin-dash', pharmacy: 'pharmacy-dash', user: 'search' }[role] || 'search';
+}
+
+/* ================================================
+   SIDEBAR — Role-based nav
+   ================================================ */
+function buildSidebar(role) {
+  const navs = {
+    user: [
+      { id: 'search', icon: '🔍', label: 'İlaç Ara' },
+      { id: 'map',    icon: '🗺️', label: 'Eczane Haritası' },
+    ],
+    pharmacy: [
+      { id: 'pharmacy-dash', icon: '📊', label: 'Genel Bakış' },
+      { id: 'stock',         icon: '📦', label: 'Stok Yönetimi' },
+    ],
+    admin: [
+      { id: 'admin-dash',  icon: '📊', label: 'Genel Bakış' },
+      { id: 'pharmacies',  icon: '🏥', label: 'Eczaneler' },
+      { id: 'medicines',   icon: '💊', label: 'İlaçlar' },
+      { id: 'logs',        icon: '📋', label: 'Aktivite Logları' },
+    ],
+  };
+
+  const items = navs[role] || navs['user'];
+  document.getElementById('sidebar-nav').innerHTML = items.map(n =>
+    `<div class="nav-item" id="nav-${n.id}" onclick="navigateTo('${n.id}')">
+       <span class="icon">${n.icon}</span><span>${n.label}</span>
+     </div>`
+  ).join('');
+}
+
+/* ================================================
+   NAVIGATION
+   ================================================ */
+const PAGE_TITLES = {
+  'search':        ['🔍 İlaç Ara',          'Konumunuza yakın eczanelerde ilaç bulun'],
+  'map':           ['🗺️ Eczane Haritası',    'Tüm aktif eczaneler'],
+  'admin-dash':    ['📊 Genel Bakış',        'Admin Paneli'],
+  'pharmacies':    ['🏥 Eczane Yönetimi',    'Tüm eczaneler ve hesaplar'],
+  'medicines':     ['💊 İlaç Yönetimi',      'İlaç veritabanı'],
+  'logs':          ['📋 Aktivite Logları',   'Sistem aktivite kaydı'],
+  'pharmacy-dash': ['📊 Genel Bakış',        state.pharmacy?.name || 'Eczane Paneli'],
+  'stock':         ['📦 Stok Yönetimi',      'Ürün ve miktar yönetimi'],
+};
+
+async function navigateTo(page) {
+  log(`Sayfa: ${page}`);
+  state.currentPage = page;
+
+  // Nav highlight
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.getElementById(`nav-${page}`);
+  if (navEl) navEl.classList.add('active');
+
+  // Topbar
+  const meta = PAGE_TITLES[page] || [page, ''];
+  document.getElementById('topbar-title').textContent = meta[0];
+  document.getElementById('topbar-sub').textContent   = meta[1];
+
+  // Show correct view
+  document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active'));
+  const view = document.getElementById(`page-${page}`);
+  if (view) view.classList.add('active');
+
+  // Load data per page
+  if (page === 'admin-dash')    await loadAdminDash();
+  if (page === 'pharmacies')    await loadPharmacies();
+  if (page === 'medicines')     await loadMedicines();
+  if (page === 'logs')          await loadLogs();
+  if (page === 'pharmacy-dash') await loadPharmacyDash();
+  if (page === 'stock')         await loadStock();
+  if (page === 'map')           await loadAllPharmaciesMap();
+}
+
+/* ================================================
+   GEOLOCATİON
+   ================================================ */
+function getLocation(btnId = 'geo-btn', statusId = 'geo-status') {
+  const btn    = document.getElementById(btnId);
+  const status = document.getElementById(statusId);
+  if (!navigator.geolocation) { toast('Tarayıcınız konum desteklemiyor.', 'error'); return; }
+  btn.textContent = '⏳ Alınıyor...';
+  status.textContent = 'Konum alınıyor...';
+  log('Konum istendi');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.lat = pos.coords.latitude;
+      state.lon = pos.coords.longitude;
+      btn.textContent = '✅ Konum Alındı';
+      btn.classList.add('active');
+      status.textContent = `${state.lat.toFixed(4)}, ${state.lon.toFixed(4)}`;
+      log(`Konum alındı: ${state.lat}, ${state.lon}`, 'success');
+      toast('Konum alındı!', 'success');
+    },
+    err => {
+      btn.textContent = '📍 Konumumu Kullan';
+      const msgs = { 1: 'Konum izni reddedildi.', 2: 'Konum alınamadı.', 3: 'Zaman aşımı.' };
+      status.textContent = msgs[err.code] || 'Hata';
+      log(`Konum hatası: ${msgs[err.code]}`, 'error');
+      toast(msgs[err.code] || 'Konum hatası', 'error');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+function getLocationForMap() { getLocation('geo-btn-map', 'geo-status-map'); }
+
+/* ================================================
+   SEARCH — İlaç ara
+   ================================================ */
+let acTimer;
+async function onSearchInput(val) {
+  clearTimeout(acTimer);
+  const ac = document.getElementById('ac-list');
+  if (val.length < 2) { ac.classList.add('hidden'); return; }
+  acTimer = setTimeout(async () => {
+    const { data } = await db.from('medicines').select('name').ilike('name', `%${val}%`).limit(7);
+    if (!data?.length) { ac.classList.add('hidden'); return; }
+    ac.innerHTML = data.map(m =>
+      `<div class="ac-item" onclick="selectAC('${m.name.replace(/'/g,"\\'")}')">🔍 ${m.name}</div>`
+    ).join('');
+    ac.classList.remove('hidden');
+  }, 280);
+}
+function selectAC(name) {
+  document.getElementById('search-input').value = name;
+  document.getElementById('ac-list').classList.add('hidden');
+  searchMedicines();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ac-container')) document.getElementById('ac-list').classList.add('hidden');
+});
+
+async function searchMedicines() {
+  const q   = document.getElementById('search-input').value.trim();
+  const res = document.getElementById('search-results');
+  const btn = document.getElementById('search-btn');
+
+  if (!q) { toast('Lütfen bir ilaç adı girin.', 'error'); return; }
+  if (!state.lat || !state.lon) { toast('Önce konumunuzu alın.', 'error'); return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Aranıyor...';
+  res.innerHTML = '<div class="loading"><div class="spinner"></div> Aranıyor...</div>';
+  log(`Arama: "${q}" lat=${state.lat} lon=${state.lon}`);
+
+  // Analytics log (beklemeden)
+  db.from('search_analytics').insert({ medicine_name: q }).then(() => {});
+
+  // Stokta olan eczaneleri ilaçla birlikte getir
+  const { data, error } = await db
+    .from('stock')
+    .select('quantity, pharmacy:pharmacies(id,name,address,latitude,longitude,phone,is_active), medicine:medicines(name,barcode)')
+    .gt('quantity', 0)
+    .ilike('medicines.name', `%${q}%`);
+
+  btn.disabled = false; btn.textContent = '🔍 Ara';
+
+  if (error) { log(`Arama hatası: ${error.message}`, 'error'); toast('Arama hatası.', 'error'); return; }
+
+  // Filtrele + mesafe hesapla + sırala
+  const results = (data || [])
+    .filter(r => r.medicine && r.pharmacy?.is_active)
+    .map(r => ({
+      ...r,
+      distance: haversine(state.lat, state.lon, r.pharmacy.latitude, r.pharmacy.longitude),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  log(`Arama sonucu: ${results.length} eczane`, results.length ? 'success' : 'warn');
+
+  if (!results.length) {
+    res.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">💊</div>
+        <h3>Sonuç Bulunamadı</h3>
+        <p>"${q}" için yakın çevrenizde stokta ilaç bulunamadı.</p>
+      </div>`;
+    document.getElementById('map').style.display = 'none';
+    return;
+  }
+
+  // Harita
+  const mapEl = document.getElementById('map');
+  mapEl.style.display = 'block';
+  if (state.mapInstance) { state.mapInstance.remove(); state.mapInstance = null; }
+  state.mapInstance = L.map('map').setView([state.lat, state.lon], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(state.mapInstance);
+
+  // Kullanıcı markeri
+  L.circleMarker([state.lat, state.lon], { radius: 8, color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 })
+    .bindPopup('<b>📍 Benim Konumum</b>').addTo(state.mapInstance);
+
+  const bounds = [[state.lat, state.lon]];
+  state.markers = [];
+  results.forEach((r, i) => {
+    const marker = L.marker([r.pharmacy.latitude, r.pharmacy.longitude])
+      .bindPopup(`
+        <div class="popup-name">${r.pharmacy.name}</div>
+        <div class="popup-addr">📍 ${r.pharmacy.address}</div>
+        <div class="popup-stock"><span class="popup-pill">📦 ${r.medicine.name} — ${r.quantity} adet</span></div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b">📏 ${fmtDist(r.distance)}</div>
+      `)
+      .addTo(state.mapInstance);
+    state.markers.push(marker);
+    bounds.push([r.pharmacy.latitude, r.pharmacy.longitude]);
+  });
+  state.mapInstance.fitBounds(bounds, { padding: [40, 40] });
+
+  // Sonuç kartları
+  res.innerHTML = `<p style="font-size:13px;color:var(--gray500);margin-bottom:12px">${results.length} eczane bulundu — <strong>"${q}"</strong></p>` +
+    results.map((r, i) => `
+      <div class="result-card" onclick="focusMarker(${i}, ${r.pharmacy.latitude}, ${r.pharmacy.longitude})" id="rc-${i}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="result-name">${r.pharmacy.name}</div>
+            ${stockBadge(r.quantity)}
+          </div>
+          <div class="result-distance">${fmtDist(r.distance)}</div>
+        </div>
+        <div class="result-meta">
+          <span>📍 ${r.pharmacy.address}</span>
+          ${r.pharmacy.phone ? `<span>📞 ${r.pharmacy.phone}</span>` : ''}
+          <span>💊 <strong>${r.medicine.name}</strong> — ${r.quantity} adet</span>
+        </div>
+      </div>
+    `).join('');
+}
+
+function focusMarker(i, lat, lon) {
+  document.querySelectorAll('.result-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`rc-${i}`);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  if (state.mapInstance && state.markers[i]) {
+    state.mapInstance.setView([lat, lon], 15);
+    state.markers[i].openPopup();
+  }
+}
+
+/* ================================================
+   ALL PHARMACIES MAP
+   ================================================ */
+async function loadAllPharmaciesMap() {
+  log('Tüm eczane haritası yükleniyor...');
+  const listEl = document.getElementById('pharmacies-list-below');
+  listEl.innerHTML = '<div class="loading"><div class="spinner"></div> Yükleniyor...</div>';
+
+  const { data, error } = await db
+    .from('pharmacies')
+    .select('*, stock(quantity, medicine:medicines(name))')
+    .eq('is_active', true);
+
+  if (error) { log(`Harita hatası: ${error.message}`, 'error'); return; }
+  log(`${data.length} eczane yüklendi`, 'success');
+
+  const mapEl = document.getElementById('all-pharmacies-map');
+  if (state.allMapInstance) { state.allMapInstance.remove(); state.allMapInstance = null; }
+
+  const center = state.lat ? [state.lat, state.lon] : [39.9, 32.8]; // Türkiye merkezi
+  state.allMapInstance = L.map(mapEl).setView(center, state.lat ? 13 : 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(state.allMapInstance);
+
+  if (state.lat) {
+    L.circleMarker([state.lat, state.lon], { radius: 8, color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 })
+      .bindPopup('<b>📍 Benim Konumum</b>').addTo(state.allMapInstance);
+  }
+
+  data.forEach(ph => {
+    if (!ph.latitude || !ph.longitude) return;
+    const stockItems = (ph.stock || []).filter(s => s.quantity > 0);
+    const pill = stockItems.map(s => `<span class="popup-pill">💊 ${s.medicine?.name || '?'} (${s.quantity})</span>`).join('');
+    L.marker([ph.latitude, ph.longitude])
+      .bindPopup(`
+        <div class="popup-name">🏥 ${ph.name}</div>
+        <div class="popup-addr">📍 ${ph.address}</div>
+        ${ph.phone ? `<div class="popup-addr">📞 ${ph.phone}</div>` : ''}
+        <div class="popup-stock" style="margin-top:6px">${pill || '<span style="color:#94a3b8;font-size:11px">Stok bilgisi yok</span>'}</div>
+      `)
+      .addTo(state.allMapInstance);
+  });
+
+  // List below map
+  listEl.innerHTML = `
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Tüm Eczaneler (${data.length})</h3>` +
+    data.map(ph => `
+      <div class="result-card" onclick="state.allMapInstance.setView([${ph.latitude||0},${ph.longitude||0}],15)">
+        <div class="result-name">🏥 ${ph.name}</div>
+        <div class="result-meta">
+          <span>📍 ${ph.address}</span>
+          ${ph.phone ? `<span>📞 ${ph.phone}</span>` : ''}
+          ${state.lat && ph.latitude ? `<span class="result-distance">${fmtDist(haversine(state.lat,state.lon,ph.latitude,ph.longitude))}</span>` : ''}
+        </div>
+      </div>`).join('');
+}
+
+/* ================================================
+   ADMIN — GENEL BAKIŞ
+   ================================================ */
+async function loadAdminDash() {
+  log('Admin dashboard yükleniyor...');
+
+  const [phRes, medRes, srchRes, logRes] = await Promise.all([
+    db.from('pharmacies').select('*', { count: 'exact', head: true }),
+    db.from('medicines').select('*', { count: 'exact', head: true }),
+    db.from('search_analytics').select('medicine_name'),
+    db.from('activity_logs').select('*, profile:profiles(email)').order('created_at', { ascending: false }).limit(8),
+  ]);
+
+  log(`Dashboard: ph=${phRes.count}, med=${medRes.count}, searches=${srchRes.data?.length}`, 'success');
+
+  document.getElementById('admin-stats').innerHTML = [
+    { icon: '🏥', value: phRes.count ?? 0,           label: 'Toplam Eczane' },
+    { icon: '💊', value: medRes.count ?? 0,           label: 'Toplam İlaç'  },
+    { icon: '🔍', value: srchRes.data?.length ?? 0,   label: 'Toplam Arama' },
+  ].map(s => `
+    <div class="stat-card">
+      <div class="stat-icon">${s.icon}</div>
+      <div class="stat-value">${s.value.toLocaleString('tr-TR')}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>`).join('');
+
+  // En çok aranan
+  const counts = {};
+  (srchRes.data || []).forEach(s => counts[s.medicine_name] = (counts[s.medicine_name] || 0) + 1);
+  const top = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 6);
+  document.getElementById('top-medicines').innerHTML = top.length
+    ? top.map(([name, cnt], i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray100)">
+          <span style="width:22px;height:22px;background:var(--gray100);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gray500)">${i+1}</span>
+          <span style="flex:1;font-size:13px">${name}</span>
+          <span class="mono" style="font-size:12px;font-weight:700;color:var(--blue)">${cnt}</span>
+        </div>`).join('')
+    : '<p style="color:var(--gray400);font-size:13px;text-align:center;padding:20px">Henüz arama yok.</p>';
+
+  // Aktiviteler
+  const ACTION_TR = { CREATE_PHARMACY:'Eczane oluşturdu', CREATE_MEDICINE:'İlaç ekledi', UPDATE_STOCK:'Stok güncelledi', DELETE_MEDICINE:'İlaç sildi', DELETE_PHARMACY:'Eczane sildi' };
+  document.getElementById('recent-activity').innerHTML = (logRes.data || []).length
+    ? (logRes.data || []).map(l => `
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray100)">
+          <div style="width:8px;height:8px;background:var(--blue);border-radius:50%;margin-top:5px;flex-shrink:0"></div>
+          <div>
+            <p style="font-size:13px"><strong>${l.profile?.email || 'Sistem'}</strong> — ${ACTION_TR[l.action] || l.action}</p>
+            <p style="font-size:11px;color:var(--gray400)">${fmtDate(l.created_at)}</p>
+          </div>
+        </div>`).join('')
+    : '<p style="color:var(--gray400);font-size:13px;text-align:center;padding:20px">Aktivite yok.</p>';
+}
+
+/* ================================================
+   ADMIN — ECZANELER
+   ================================================ */
+async function loadPharmacies() {
+  log('Eczaneler yükleniyor...');
+  const tbody = document.getElementById('pharmacies-table');
+  tbody.innerHTML = '<tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+  const { data, error } = await db
+    .from('pharmacies')
+    .select('*, profile:profiles(email)')
+    .order('created_at', { ascending: false });
+
+  if (error) { log(`Eczane hatası: ${error.message}`, 'error'); return; }
+  log(`${data.length} eczane yüklendi`, 'success');
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="icon">🏥</div><p>Henüz eczane yok.</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(ph => `
+    <tr>
+      <td><strong>${ph.name}</strong></td>
+      <td style="font-size:12px;color:var(--gray500);max-width:200px">${ph.address || '—'}</td>
+      <td>${ph.phone || '—'}</td>
+      <td style="font-size:12px">${ph.profile?.email || '—'}</td>
+      <td>${ph.is_active ? '<span class="badge badge-green">Aktif</span>' : '<span class="badge badge-gray">Pasif</span>'}</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deletePharmacy('${ph.id}','${ph.name.replace(/'/g,"\\'")}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function deletePharmacy(id, name) {
+  if (!confirm(`"${name}" silinsin mi? Bu işlem geri alınamaz.`)) return;
+  log(`Eczane siliniyor: ${name}`);
+  const { error } = await db.from('pharmacies').delete().eq('id', id);
+  if (error) { log(`Silme hatası: ${error.message}`, 'error'); toast('Silinemedi.', 'error'); return; }
+  toast(`"${name}" silindi.`, 'success');
+  await db.from('activity_logs').insert({ user_id: state.user.id, action: 'DELETE_PHARMACY', details: { name } });
+  loadPharmacies();
+}
+
+function showAddPharmacyModal() {
+  ['ph-name','ph-address','ph-lat','ph-lon','ph-phone','ph-email','ph-password'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  openModal('pharmacy-modal');
+}
+
+async function addPharmacy() {
+  const name  = document.getElementById('ph-name').value.trim();
+  const addr  = document.getElementById('ph-address').value.trim();
+  const lat   = parseFloat(document.getElementById('ph-lat').value);
+  const lon   = parseFloat(document.getElementById('ph-lon').value);
+  const phone = document.getElementById('ph-phone').value.trim();
+  const email = document.getElementById('ph-email').value.trim();
+  const pass  = document.getElementById('ph-password').value;
+
+  if (!name || !addr || !lat || !lon || !email || !pass) { toast('Zorunlu alanları doldurun.', 'error'); return; }
+  if (pass.length < 8) { toast('Şifre en az 8 karakter olmalı.', 'error'); return; }
+
+//  if (!dba) {
+//    toast('Service Role Key eksik! CONFIG bölümüne ekleyin.', 'error');
+//    log('dba null — SUPABASE_SERVICE_KEY eksik', 'error');
+//    return;
+//  }
+
+  const btn = document.getElementById('add-ph-btn');
+  btn.disabled = true; btn.textContent = 'Oluşturuluyor...';
+  log(`Eczane oluşturuluyor: ${name} <${email}>`);
+
+  try {
+    // 1. Kullanıcı oluştur
+//    const { data: newUser, error: uErr } = await dba.auth.admin.createUser({
+//      email, password: pass, email_confirm: true,
+//      user_metadata: { role: 'pharmacy' },
+//    });
+//    if (uErr) throw new Error(uErr.message.includes('already registered') ? 'Bu e-posta zaten kayıtlı.' : uErr.message);
+//    log(`Kullanıcı oluşturuldu: ${newUser.user.id}`, 'success');
+
+//    // 2. Profil rolü güncelle
+//    await dba.from('profiles').update({ role: 'pharmacy', full_name: name }).eq('id', newUser.user.id);
+//
+//    // 3. Eczane kaydı
+//    const { error: phErr } = await dba.from('pharmacies').insert({
+//      user_id: newUser.user.id, name, address: addr,
+//      latitude: lat, longitude: lon, phone: phone || null, email,
+//    });
+    const { data, error } = await db.functions.invoke('create-pharmacy', {
+      body: {
+        name,
+        address: addr,
+        latitude: lat,
+        longitude: lon,
+        phone,
+        email,
+        password: pass
+      }
+    });
+
+    if (error) throw error;
+    
+    if (phErr) throw phErr;
+
+    // 4. Log
+    await db.from('activity_logs').insert({ user_id: state.user.id, action: 'CREATE_PHARMACY', details: { name, email } });
+
+    toast(`"${name}" oluşturuldu!`, 'success');
+    log(`Eczane oluşturuldu: ${name}`, 'success');
+    closeModal('pharmacy-modal');
+    loadPharmacies();
+  } catch (e) {
+    log(`Eczane oluşturma hatası: ${e.message}`, 'error');
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Eczane Oluştur';
+  }
+}
+
+/* ================================================
+   ADMIN — İLAÇLAR
+   ================================================ */
+async function loadMedicines() {
+  log('İlaçlar yükleniyor...');
+  const tbody = document.getElementById('medicines-table');
+  tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+  const { data, error } = await db.from('medicines').select('*').order('name');
+  if (error) { log(`İlaç hatası: ${error.message}`, 'error'); return; }
+
+  state.allMedicines = data;
+  log(`${data.length} ilaç yüklendi`, 'success');
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div class="icon">💊</div><p>Henüz ilaç yok.</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(m => `
+    <tr>
+      <td><strong>${m.name}</strong></td>
+      <td class="mono" style="font-size:12px;color:var(--gray500)">${m.barcode || '—'}</td>
+      <td>${m.manufacturer || '—'}</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="deleteMedicine('${m.id}','${m.name.replace(/'/g,"\\'")}')">🗑️</button>
+      </td>
+    </tr>`).join('');
+}
+
+function showAddMedicineModal() {
+  ['med-name','med-barcode','med-manufacturer'].forEach(id => document.getElementById(id).value = '');
+  openModal('medicine-modal');
+}
+
+async function addMedicine() {
+  const name = document.getElementById('med-name').value.trim();
+  const barcode = document.getElementById('med-barcode').value.trim();
+  const manufacturer = document.getElementById('med-manufacturer').value.trim();
+
+  if (!name) { toast('İlaç adı zorunlu.', 'error'); return; }
+  const btn = document.getElementById('add-med-btn');
+  btn.disabled = true; btn.textContent = 'Ekleniyor...';
+  log(`İlaç ekleniyor: ${name}`);
+
+  const { data, error } = await db.from('medicines').insert({ name, barcode: barcode || null, manufacturer: manufacturer || null }).select().single();
+  btn.disabled = false; btn.textContent = 'İlaç Ekle';
+
+  if (error) {
+    if (error.code === '23505') toast('Bu barkod zaten kayıtlı.', 'error');
+    else toast('Eklenemedi.', 'error');
+    log(`İlaç ekleme hatası: ${error.message}`, 'error');
+    return;
+  }
+
+  await db.from('activity_logs').insert({ user_id: state.user.id, action: 'CREATE_MEDICINE', details: { name } });
+  toast(`"${name}" eklendi!`, 'success');
+  log(`İlaç eklendi: ${name}`, 'success');
+  closeModal('medicine-modal');
+  loadMedicines();
+}
+
+async function deleteMedicine(id, name) {
+  if (!confirm(`"${name}" silinsin mi?`)) return;
+  const { error } = await db.from('medicines').delete().eq('id', id);
+  if (error) { toast('Silinemedi.', 'error'); return; }
+  await db.from('activity_logs').insert({ user_id: state.user.id, action: 'DELETE_MEDICINE', details: { name } });
+  toast(`"${name}" silindi.`, 'success');
+  loadMedicines();
+}
+
+/* ================================================
+   ADMIN — LOGLAR
+   ================================================ */
+async function loadLogs() {
+  log('Loglar yükleniyor...');
+  const tbody = document.getElementById('logs-table');
+  tbody.innerHTML = '<tr><td colspan="4"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+  const { data, error } = await db
+    .from('activity_logs')
+    .select('*, profile:profiles(email)')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { log(`Log hatası: ${error.message}`, 'error'); return; }
+  log(`${data.length} log yüklendi`, 'success');
+
+  const ACTION_TR = { CREATE_PHARMACY:'🏥 Eczane Oluşturdu', CREATE_MEDICINE:'💊 İlaç Ekledi', UPDATE_STOCK:'📦 Stok Güncelledi', DELETE_MEDICINE:'🗑️ İlaç Sildi', DELETE_PHARMACY:'🗑️ Eczane Sildi' };
+
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--gray400)">Henüz aktivite yok.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(l => `
+    <tr>
+      <td style="font-size:12px">${l.profile?.email || 'Sistem'}</td>
+      <td>${ACTION_TR[l.action] || l.action}</td>
+      <td style="font-size:12px;color:var(--gray500)">${JSON.stringify(l.details || {})}</td>
+      <td style="font-size:12px;color:var(--gray400)">${fmtDate(l.created_at)}</td>
+    </tr>`).join('');
+}
+
+/* ================================================
+   ECZANE — GENEL BAKIŞ
+   ================================================ */
+async function loadPharmacyDash() {
+  if (!state.pharmacy) {
+    document.getElementById('pharmacy-stats').innerHTML = '<p style="color:var(--red)">⚠️ Eczane kaydı bulunamadı. Admin ile iletişime geçin.</p>';
+    return;
+  }
+  log(`Eczane dashboard: ${state.pharmacy.name}`);
+
+  const { data: stock } = await db.from('stock').select('*, medicine:medicines(name)').eq('pharmacy_id', state.pharmacy.id);
+  const total  = stock?.length || 0;
+  const noStock = stock?.filter(s => s.quantity === 0).length || 0;
+  const low    = stock?.filter(s => s.quantity > 0 && s.quantity < 10).length || 0;
+
+  document.getElementById('pharmacy-stats').innerHTML = [
+    { icon: '📦', value: total,   label: 'Toplam İlaç'    },
+    { icon: '❌', value: noStock, label: 'Stokta Yok'     },
+    { icon: '⚠️', value: low,    label: 'Az Stok (< 10)' },
+  ].map(s => `
+    <div class="stat-card">
+      <div class="stat-icon">${s.icon}</div>
+      <div class="stat-value">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>`).join('');
+
+  const sorted = (stock || []).sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at)).slice(0, 8);
+  document.getElementById('pharmacy-recent-stock').innerHTML = sorted.length
+    ? sorted.map(s => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gray100)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">💊</span>
+            <span style="font-size:14px;font-weight:600">${s.medicine?.name || '—'}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="mono" style="font-size:13px">${s.quantity} adet</span>
+            ${stockBadge(s.quantity)}
+          </div>
+        </div>`).join('')
+    : '<p style="color:var(--gray400);font-size:13px;text-align:center;padding:20px">Henüz stok girilmemiş.</p>';
+}
+
+/* ================================================
+   ECZANE — STOK
+   ================================================ */
+async function loadStock() {
+  if (!state.pharmacy) return;
+  log(`Stok yükleniyor: ${state.pharmacy.name}`);
+  const tbody = document.getElementById('stock-table');
+  tbody.innerHTML = '<tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr>';
+
+  const { data, error } = await db
+    .from('stock')
+    .select('*, medicine:medicines(name,barcode)')
+    .eq('pharmacy_id', state.pharmacy.id)
+    .order('updated_at', { ascending: false });
+
+  if (error) { log(`Stok hatası: ${error.message}`, 'error'); return; }
+  state.allStock = data || [];
+  log(`${data.length} stok satırı`, 'success');
+  renderStockTable(state.allStock);
+}
+
+function renderStockTable(rows) {
+  const tbody = document.getElementById('stock-table');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="icon">📦</div><p>Stok kaydı yok.</p></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(s => `
+    <tr>
+      <td><strong>${s.medicine?.name || '—'}</strong></td>
+      <td class="mono" style="font-size:12px;color:var(--gray500)">${s.medicine?.barcode || '—'}</td>
+      <td class="mono" style="font-weight:700">${s.quantity}</td>
+      <td>${stockBadge(s.quantity)}</td>
+      <td style="font-size:12px;color:var(--gray400)">${fmtDate(s.updated_at)}</td>
+    </tr>`).join('');
+}
+
+function filterStock(q) {
+  const filtered = state.allStock.filter(s => (s.medicine?.name || '').toLowerCase().includes(q.toLowerCase()));
+  renderStockTable(filtered);
+}
+
+async function showAddStockModal() {
+  // İlaç listesini yükle
+  if (!state.allMedicines.length) {
+    const { data } = await db.from('medicines').select('id,name').order('name');
+    state.allMedicines = data || [];
+  }
+  const sel = document.getElementById('stock-medicine-select');
+  sel.innerHTML = '<option value="">İlaç seçin...</option>' +
+    state.allMedicines.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  document.getElementById('stock-quantity').value = '';
+  openModal('stock-modal');
+}
+
+async function saveStock() {
+  const medId = document.getElementById('stock-medicine-select').value;
+  const qty   = parseInt(document.getElementById('stock-quantity').value);
+
+  if (!medId) { toast('İlaç seçin.', 'error'); return; }
+  if (isNaN(qty) || qty < 0) { toast('Geçerli miktar girin.', 'error'); return; }
+
+  const btn = document.getElementById('save-stock-btn');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor...';
+  log(`Stok güncelleniyor: medId=${medId} qty=${qty}`);
+
+  const { error } = await db.from('stock').upsert(
+    { pharmacy_id: state.pharmacy.id, medicine_id: medId, quantity: qty, updated_at: new Date().toISOString() },
+    { onConflict: 'pharmacy_id,medicine_id' }
+  );
+
+  btn.disabled = false; btn.textContent = 'Kaydet';
+
+  if (error) { log(`Stok hatası: ${error.message}`, 'error'); toast('Kayıt hatası.', 'error'); return; }
+
+  await db.from('activity_logs').insert({ user_id: state.user.id, action: 'UPDATE_STOCK', details: { medicine_id: medId, quantity: qty } });
+
+  toast('Stok güncellendi!', 'success');
+  log('Stok güncellendi', 'success');
+  closeModal('stock-modal');
+  loadStock();
+  if (state.currentPage === 'pharmacy-dash') loadPharmacyDash();
+}
+
+/* ================================================
+   BOOTSTRAP — Sayfa yüklenince çalışır
+   ================================================ */
+(async () => {
+  log('Pharmex başlatılıyor...');
+
+  // Config kontrol
+  if (SUPABASE_URL === 'https://YOUR_PROJECT.supabase.co') {
+    log('⚠️ SUPABASE_URL ayarlanmamış! Kurulum rehberini açın.', 'warn');
+    document.getElementById('debug-btn').click();
+    document.getElementById('setup-modal').classList.remove('hidden');
+    return;
+  }
+
+  log(`Supabase: ${SUPABASE_URL}`);
+
+  // Mevcut oturum kontrol et
+  const { data: { session } } = await db.auth.getSession();
+  if (session?.user) {
+    log('Mevcut oturum bulundu, uygulama başlatılıyor...');
+    await initApp(session.user);
+  } else {
+    log('Oturum yok, giriş sayfası gösteriliyor.');
+    document.getElementById('view-login').style.display = 'flex';
+  }
+
+  // Auth değişikliklerini dinle
+  db.auth.onAuthStateChange(async (event, session) => {
+    log(`Auth event: ${event}`);
+    if (event === 'SIGNED_OUT') {
+      document.getElementById('app-shell').classList.add('hidden');
+      document.getElementById('view-login').style.display = 'flex';
+    }
+  });
+})();
+async function register() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+
+  if (!email || !pass) {
+    toast('E-posta ve şifre girin', 'error');
+    return;
+  }
+
+  const { data, error } = await db.auth.signUp({
+    email: email,
+    password: pass
+  });
+
+  if (error) {
+    toast(error.message, 'error');
+    return;
+  }
+
+  toast('Kayıt başarılı! Giriş yapabilirsiniz.', 'success');
+}
+const menuBtn = document.getElementById("menu-btn");
+
+if(menuBtn){
+    menuBtn.onclick = () => {
+        document.querySelector(".sidebar").classList.toggle("open");
+    };
+}
+document.addEventListener("click", function(e){
+
+    const sidebar = document.querySelector(".sidebar");
+
+    if(window.innerWidth <= 768){
+
+        if(
+            !sidebar.contains(e.target) &&
+            !e.target.closest("#menu-btn")
+        ){
+            sidebar.classList.remove("open");
+        }
+
+    }
+
+});
+</script>
+</body>
+</html>
